@@ -1,0 +1,54 @@
+spring:
+  profiles:
+    active: dev
+
+apiBaseAntMatcher: /api/*
+allowCredentials: false
+headers: Access-Control-Allow-Origin,Access-Control-Allow-Credentials,X-Requested-With,Origin,Content-Type,Accept,Authorization,WWW-Authenticate
+methods: GET,POST,PATCH,PUT,DELETE
+
+# docker profile
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.jdbc.Driver
+
+  jpa:
+    show-sql: true
+    database: mysql
+
+logging:
+  level:
+    com.example.aggridserversidespringbootexample: debug
+    org.springframework: info
+
+originUrl: ${ORIGIN_URL:http://localhost:3000}
+
+# dev profile
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:mysql://0.0.0.0:23306/sample_data
+    username: root
+    password: root
+
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.example.aggridserversidespringbootexample: debug
+    org.springframework: info
+
+originUrl: ${ORIGIN_URL:http://localhost:3000}
