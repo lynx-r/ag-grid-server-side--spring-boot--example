@@ -18,11 +18,12 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.jdbc.Driver
+    schema: sample_data
 
   jpa:
-    show-sql: true
-    database: mysql
+    properties:
+      hibernate:
+        default_schema: sample_data
 
 logging:
   level:
@@ -45,6 +46,9 @@ spring:
 
   jpa:
     show-sql: true
+    properties:
+      hibernate:
+        default_schema: sample_data
 
 logging:
   level:

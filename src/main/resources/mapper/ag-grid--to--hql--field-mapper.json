@@ -1,0 +1,23 @@
+{
+  "constants": {
+    "filterType": {
+      "CONTAINS": "contains"
+    }
+  },
+  "filterTypeToHqlOperator": {
+    "startsWith": "LIKE",
+    "endsWith": "LIKE",
+    "contains": "LIKE",
+    "equals": " = ",
+    "greaterThanOrEqual": " >= ",
+    "lessThanOrEqual": " <= "
+  },
+  "OLYMPICWINNER": {
+    "excludeFromWhere": [],
+    "filterNameToHavingPath": {},
+    "filterNameToHqlPath": {
+      "id": "entity.id",
+      "idAsString": "cast(entity.id as text)"
+    }
+  }
+}
