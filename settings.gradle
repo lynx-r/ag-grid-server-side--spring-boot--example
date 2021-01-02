@@ -1,1 +1,3 @@
 rootProject.name = 'ag-grid-server-side--spring-boot--example'
+include 'spring-serverside'
+
