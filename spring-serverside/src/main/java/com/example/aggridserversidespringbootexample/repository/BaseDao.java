@@ -1,20 +1,15 @@
 package com.example.aggridserversidespringbootexample.repository;
 
-import com.example.aggridserversidespringbootexample.config.TemplateParser;
-import com.example.aggridserversidespringbootexample.domain.enums.EnumTemplateType;
 import com.example.aggridserversidespringbootexample.domain.request.TableRequest;
 import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.ColumnVO;
 import com.example.aggridserversidespringbootexample.domain.response.DataResponse;
-import com.example.aggridserversidespringbootexample.service.RequestMapperService;
 import com.google.common.base.Joiner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,49 +30,11 @@ abstract class BaseDao<T> {
 
   @PersistenceContext protected EntityManager em;
 
-  @Autowired private RequestMapperService requestMapperService;
-  @Autowired private TemplateParser templateParser;
-
   private Class<T> clazz;
 
   public BaseDao(Class<T> clazz) {
     this.clazz = clazz;
   }
-
-  //  public DataResponse<T> findAllByRequest(TableRequest request) {
-  //    TypedQuery<T> query;
-  //    var isRequestForAll = !request.hasFilter() && !request.isPaged();
-  //    String hql;
-  //    if (isRequestForAll) {
-  //      hql = createHql(request, EnumTemplateType.FIND_ALL);
-  //    } else {
-  //      hql = createHql(request, EnumTemplateType.FIND_ALL_IDS);
-  //      List<?> idsRaw;
-  //      if (request.isPaged()) {
-  //        var maxResult = request.getEndRow() - request.getStartRow() + 1;
-  //        idsRaw =
-  //            createQuery(hql)
-  //                .setFirstResult(request.getStartRow())
-  //                .setMaxResults(maxResult)
-  //                .getResultList();
-  //      } else {
-  //        idsRaw = createQuery(hql).getResultList();
-  //      }
-  //
-  //      var ids = idsRaw.stream().map(this::idToString).collect(toList());
-  //      var orderBy = createOrderBy(request, ids);
-  //      var whereIds = createWhereIds(ids);
-  //
-  //      hql = createHql(request, EnumTemplateType.FIND_ALL, whereIds, orderBy);
-  //    }
-  //    query = createQueryEntities(hql);
-  //
-  //    var results = query.getResultList();
-  //    var count = getRowCount(request, results);
-  //    var resultsForPage = cutResultsToPageSize(request, results);
-  //
-  //    return DataResponse.fromListAndTotalCount(resultsForPage, count);
-  //  }
 
   public DataResponse findAllByRequest(TableRequest request) {
     var maxResult = request.getEndRow() - request.getStartRow() + 1;
@@ -335,40 +292,9 @@ abstract class BaseDao<T> {
     return rowGroupCols.size() > groupKeys.size();
   }
 
-  private String idToString(Object o) {
-    if (o instanceof Long) {
-      return ((Long) o).toString();
-    }
-    return ((Object[]) o)[0].toString();
-  }
-
-  private String createHql(TableRequest request, EnumTemplateType templateQuery) {
-    return createHql(request, templateQuery, "", "");
-  }
-
-  private String createHql(
-      TableRequest request, EnumTemplateType templateQuery, String whereIds, String orderBy) {
-    var params =
-        Map.of(
-            "request", request,
-            "orderBy", orderBy,
-            "whereIds", whereIds,
-            "constants", requestMapperService.constants(),
-            "entityClass", getEntityName(),
-            "entityMapper", requestMapperService.entityMapper(getEntityName()),
-            "filterTypeToHqlOperator", requestMapperService.filterTypeToHqlOperator());
-    var templateName = getHqlTemplateName(templateQuery);
-    return templateParser.prepareQuery(templateName, params);
-  }
-
   private TypedQuery<?> createQueryMap(String query) {
     log.debug("QUERY:\n{}", query);
     return em.createQuery(query, Map.class);
-  }
-
-  private Query createQuery(String query) {
-    log.debug("QUERY:\n{}", query);
-    return em.createQuery(query);
   }
 
   private TypedQuery<T> createQueryEntities(String query) {
@@ -379,10 +305,6 @@ abstract class BaseDao<T> {
   private TypedQuery<Long> createQueryIds(String query) {
     log.debug("HQL QUERY:\n{}", query);
     return em.createQuery(query, Long.class);
-  }
-
-  private String getHqlTemplateName(EnumTemplateType templateQuery) {
-    return format("hql/entity__%s__hql.ftl", templateQuery).toLowerCase();
   }
 
   private String getEntityName() {
