@@ -149,6 +149,16 @@
     </#if>
 </#macro>
 
+<#macro queryGroupBy rowGroupCols>
+    <#if rowGroupCols?has_content>
+        GROUP BY
+        <#list rowGroupCols as groupBy>
+            ${filterNameToHqlPath[groupBy.field]!groupBy.field}
+            <#sep>,
+        </#list>
+    </#if>
+</#macro>
+
 <#macro querySort sortModel>
     <#if sortModel?has_content>
         ORDER BY
@@ -169,10 +179,20 @@
         ,
         <#list sortModel as sortObj>
             <#if sortObj.colId?lower_case?ends_with("idasstring")>
-                ${filterNameToHqlPath[sortObj.colId?remove_ending("AsString")]}
+                min(${filterNameToHqlPath[sortObj.colId?remove_ending("AsString")]})
             <#else>
-                ${filterNameToHqlPath[sortObj.colId]!sortObj.colId}
+                min(${filterNameToHqlPath[sortObj.colId]!sortObj.colId})
             </#if>
+            <#sep>,
+        </#list>
+    </#if>
+</#macro>
+
+<#macro selectGroupBy rowGroupCols>
+    <#if rowGroupCols?has_content>
+        ,
+        <#list rowGroupCols as groupBy>
+            ${filterNameToHqlPath[groupBy.field]!groupBy.field}
             <#sep>,
         </#list>
     </#if>

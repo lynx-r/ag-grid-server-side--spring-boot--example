@@ -2,7 +2,7 @@
 import 'ag-grid-enterprise'
 import { AgGridReact } from 'ag-grid-react'
 import { DataType } from 'model'
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import ServerSideDatasource from 'util/ServerSideDatasource'
 import DATA_GRID_OPTIONS from './dataOptions'
 import { default as TotalRows } from './TotalRows'
@@ -13,7 +13,10 @@ interface TableProps {
 
 const Table = ({type}: TableProps) => {
   const gridOptions = useMemo(() => DATA_GRID_OPTIONS[type], [type])
-  const datasource = useMemo(() => new ServerSideDatasource(gridOptions, type), [gridOptions, type])
+  const [dataCount, setDataCount] = useState<number | undefined>(0)
+  const datasource = useMemo(() =>
+    new ServerSideDatasource(gridOptions, type, setDataCount),
+    [gridOptions, type, setDataCount])
 
   const AgGridHoc = useCallback(
     () => <AgGridReact
@@ -24,7 +27,7 @@ const Table = ({type}: TableProps) => {
 
   return (
     <div className="ag-theme-alpine" style={{width: 1200, height: 700}}>
-      <TotalRows count={datasource?.dataCount}/>
+      <TotalRows count={dataCount}/>
       <AgGridHoc/>
     </div>
   )

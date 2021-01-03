@@ -23,6 +23,7 @@ public class TemplateParser {
     public TemplateParser(Configuration configuration) {
         this.configuration = configuration;
         this.configuration.setTemplateLoader(new ClassTemplateLoader(getClass(), HQL_TEMPLATES_PATH));
+        // TODO Эксплуатация инъекций в Hibernate ORM https://habr.com/en/company/parallels/blog/272589/
 //        this.configuration.setOutputFormat(XMLOutputFormat.INSTANCE);
         this.configuration.setLocale(Locale.US);
         this.configuration.setNumberFormat(NUMBER_FORMAT);

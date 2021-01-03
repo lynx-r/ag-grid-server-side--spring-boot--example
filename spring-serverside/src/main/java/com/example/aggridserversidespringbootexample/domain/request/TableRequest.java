@@ -1,29 +1,38 @@
 package com.example.aggridserversidespringbootexample.domain.request;
 
-import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.RowGroup;
+import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.ColumnVO;
 import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.SortModel;
-import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.ValueCol;
 import lombok.*;
 import org.springframework.util.CollectionUtils;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Data
 public class TableRequest {
 
-  private int startRow;
-  private int endRow;
+  private int startRow, endRow;
 
-  private Boolean pivotMode;
+  // row group columns
+  private List<ColumnVO> rowGroupCols;
+
+  // value columns
+  private List<ColumnVO> valueCols;
+
+  // pivot columns
   private List<String> pivotCols;
+
+  // true if pivot mode is one, otherwise false
+  private boolean pivotMode;
+
+  // what groups the user is viewing
   private List<String> groupKeys;
-  private List<RowGroup> rowGroupCols;
-  private List<SortModel> sortModel;
+
+  // if filtering, what the filter model is
   private Map<String, Map<String, Object>> filterModel;
-  private List<ValueCol> valueCols;
-  private Number resultCount;
+
+  // if sorting, what the sort model is
+  private List<SortModel> sortModel;
 
   public boolean isPaged() {
     return startRow >= 0 && endRow > 0;

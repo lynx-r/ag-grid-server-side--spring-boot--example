@@ -3,19 +3,26 @@ package com.example.aggridserversidespringbootexample.repository;
 import com.example.aggridserversidespringbootexample.config.TemplateParser;
 import com.example.aggridserversidespringbootexample.domain.enums.EnumTemplateType;
 import com.example.aggridserversidespringbootexample.domain.request.TableRequest;
+import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.ColumnVO;
 import com.example.aggridserversidespringbootexample.domain.response.DataResponse;
 import com.example.aggridserversidespringbootexample.service.RequestMapperService;
 import com.google.common.base.Joiner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.CollectionUtils;
 
-import javax.persistence.*;
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.persistence.Query;
+import javax.persistence.TypedQuery;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import static java.lang.String.format;
+import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
@@ -34,42 +41,197 @@ abstract class BaseDao<T> {
     this.clazz = clazz;
   }
 
+  //  public DataResponse<T> findAllByRequest(TableRequest request) {
+  //    TypedQuery<T> query;
+  //    var isRequestForAll = !request.hasFilter() && !request.isPaged();
+  //    String hql;
+  //    if (isRequestForAll) {
+  //      hql = createHql(request, EnumTemplateType.FIND_ALL);
+  //    } else {
+  //      hql = createHql(request, EnumTemplateType.FIND_ALL_IDS);
+  //      List<?> idsRaw;
+  //      if (request.isPaged()) {
+  //        var maxResult = request.getEndRow() - request.getStartRow() + 1;
+  //        idsRaw =
+  //            createQuery(hql)
+  //                .setFirstResult(request.getStartRow())
+  //                .setMaxResults(maxResult)
+  //                .getResultList();
+  //      } else {
+  //        idsRaw = createQuery(hql).getResultList();
+  //      }
+  //
+  //      var ids = idsRaw.stream().map(this::idToString).collect(toList());
+  //      var orderBy = createOrderBy(request, ids);
+  //      var whereIds = createWhereIds(ids);
+  //
+  //      hql = createHql(request, EnumTemplateType.FIND_ALL, whereIds, orderBy);
+  //    }
+  //    query = createQueryEntities(hql);
+  //
+  //    var results = query.getResultList();
+  //    var count = getRowCount(request, results);
+  //    var resultsForPage = cutResultsToPageSize(request, results);
+  //
+  //    return DataResponse.fromListAndTotalCount(resultsForPage, count);
+  //  }
+
   public DataResponse<T> findAllByRequest(TableRequest request) {
-    Number count = null;
-    TypedQuery<T> query;
-    var isRequestForAll = !request.hasFilter() && !request.isPaged();
-    String hql;
-    if (isRequestForAll) {
-      hql = createHql(request, EnumTemplateType.FIND_ALL);
-    } else {
-      count = countAllByRequest(request);
-      if (count.intValue() == 0) {
-        return DataResponse.empty();
-      }
+    var selectHql = createSelectIdsHql(request);
+    var fromHql = createSelectFrom();
+    var whereHql = createWhereHql(request);
 
-      hql = createHql(request, EnumTemplateType.FIND_ALL_IDS);
-      List<?> idsRaw;
-      if (request.isPaged()) {
-        var maxResult = request.getEndRow() - request.getStartRow();
-        idsRaw =
-            createQuery(hql)
-                .setFirstResult(request.getStartRow())
-                .setMaxResults(maxResult)
-                .getResultList();
-      } else {
-        idsRaw = createQuery(hql).getResultList();
-      }
+    var orderByHql = createOrderByHql(request);
+    var groupByHql = createGroupByHql(request);
 
-      var ids = idsRaw.stream().map(this::idToString).collect(toList());
-      var orderBy = createOrderBy(request, ids);
-      var whereIds = createWhereIds(ids);
+    var hql = selectHql + fromHql + whereHql + groupByHql + orderByHql;
+    log.debug("HQL {}", hql);
 
-      hql = createHql(request, EnumTemplateType.FIND_ALL, whereIds, orderBy);
+    var maxResult = request.getEndRow() - request.getStartRow() + 1;
+    var query = createQuery(hql).setFirstResult(request.getStartRow()).setMaxResults(maxResult);
+
+    List<?> ids = query.getResultList();
+
+    hql = createQueryByIdsHql(request, ids);
+
+    var results = createQueryEntities(hql).getResultList();
+
+    var count = getRowCount(request, results);
+    var resultsForPage = cutResultsToPageSize(request, results);
+
+    return DataResponse.fromListAndTotalCount(resultsForPage, count);
+  }
+
+  private String createQueryByIdsHql(TableRequest request, List<?> idsRaw) {
+    var ids = idsRaw.stream().map(this::idToString).collect(toList());
+
+    var orderBy = createOrderBy(request, ids);
+    var whereIds = createWhereIds(ids);
+
+    return "from " + getEntityName() + " " + whereIds + " " + orderBy;
+  }
+
+  private String createSelectIdsHql(TableRequest request) {
+    var rowGroupCols = request.getRowGroupCols();
+    var valueCols = request.getValueCols();
+    var groupKeys = request.getGroupKeys();
+
+    if (isDoingGrouping(rowGroupCols, groupKeys)) {
+      var colsToSelect = new ArrayList<String>();
+
+      var rowGroupCol = rowGroupCols.get(groupKeys.size());
+      colsToSelect.add(rowGroupCol.getField());
+
+      valueCols.forEach(
+          (valueCol) ->
+              colsToSelect.add(
+                  valueCol.getAggFunc()
+                      + "("
+                      + valueCol.getField()
+                      + ") as "
+                      + valueCol.getField()));
+
+      return " select " + Joiner.on(", ").join(colsToSelect);
     }
-    query = createQueryEntities(hql);
 
-    var data = query.getResultList();
-    return DataResponse.fromListAndTotalCount(data, count);
+    return "select entity.id";
+  }
+
+  private String createSelectFrom() {
+    return " FROM " + getEntityName() + " entity ";
+  }
+
+  private String createWhereHql(TableRequest request) {
+    var rowGroupCols = request.getRowGroupCols();
+    var groupKeys = request.getGroupKeys();
+    var filterModel = request.getFilterModel();
+
+    var whereParts = new ArrayList<String>();
+
+    if (!groupKeys.isEmpty()) {
+      IntStream.range(0, groupKeys.size())
+          .forEach(
+              (index) -> {
+                var key = groupKeys.get(index);
+                var colName = rowGroupCols.get(index).getField();
+                whereParts.add(colName + " = \"" + key + "\"");
+              });
+    }
+
+    if (!filterModel.isEmpty()) {
+      var keySet = filterModel.keySet();
+      keySet.forEach(
+          (key) -> {
+            var item = filterModel.get(key);
+            whereParts.add(createFilterHql(key, item));
+          });
+    }
+
+    if (!whereParts.isEmpty()) {
+      return " where " + Joiner.on(" and ").join(whereParts);
+    } else {
+      return "";
+    }
+  }
+
+  private String createFilterHql(String key, Map<String, Object> item) {
+    var filterType = (String) item.get("filterType");
+    switch (filterType) {
+      case "text":
+        return createTextFilterHql(key, item);
+      case "number":
+        return createNumberFilterHql(key, item);
+      default:
+        log.error("unkonwn filter type: " + filterType);
+        return "";
+    }
+  }
+
+  private String createNumberFilterHql(String key, Map<String, Object> item) {
+    String type = (String) item.get("type");
+    var filter = item.get("filter");
+    var filterTo = item.get("filterTo");
+    switch (type) {
+      case "equals":
+        return key + " = " + filter;
+      case "notEqual":
+        return key + " != " + filter;
+      case "greaterThan":
+        return key + " > " + filter;
+      case "greaterThanOrEqual":
+        return key + " >= " + filter;
+      case "lessThan":
+        return key + " < " + filter;
+      case "lessThanOrEqual":
+        return key + " <= " + filter;
+      case "inRange":
+        return "(" + key + " >= " + filter + " and " + key + " <= " + filterTo + ")";
+      default:
+        log.error("unknown number filter type: " + type);
+        return "true";
+    }
+  }
+
+  private String createTextFilterHql(String key, Map<String, Object> item) {
+    String type = (String) item.get("type");
+    var filter = item.get("filter");
+    switch (type) {
+      case "equals":
+        return key + " = \"" + filter + "\"";
+      case "notEqual":
+        return key + " != \"" + filter + "\"";
+      case "contains":
+        return key + " like \"%" + filter + "%\"";
+      case "notContains":
+        return key + " not like \"%" + filter + "%\"";
+      case "startsWith":
+        return key + " like \"" + filter + "%\"";
+      case "endsWith":
+        return key + " like \"%" + filter + "\"";
+      default:
+        log.error("unknown text filter type: " + type);
+        return "true";
+    }
   }
 
   private String createOrderBy(TableRequest request, List<String> ids) {
@@ -84,6 +246,51 @@ abstract class BaseDao<T> {
     return orderBy;
   }
 
+  private String createOrderByHql(TableRequest request) {
+    var rowGroupCols = request.getRowGroupCols();
+    var groupKeys = request.getGroupKeys();
+    var sortModel = request.getSortModel();
+
+    var grouping = this.isDoingGrouping(rowGroupCols, groupKeys);
+
+    var sortParts = new ArrayList<String>();
+    if (!sortModel.isEmpty()) {
+
+      var groupColIds =
+          rowGroupCols.stream().map(ColumnVO::getId).limit(groupKeys.size() + 1).collect(toList());
+
+      sortModel.forEach(
+          (item) -> {
+            if (!grouping || groupColIds.contains(item.getColId())) {
+              sortParts.add(item.getColId() + ' ' + item.getSort());
+            }
+          });
+    }
+
+    if (!sortParts.isEmpty()) {
+      return " order by " + Joiner.on(", ").join(sortParts);
+    } else {
+      return "";
+    }
+  }
+
+  private String createGroupByHql(TableRequest request) {
+    var rowGroupCols = request.getRowGroupCols();
+    var groupKeys = request.getGroupKeys();
+
+    if (this.isDoingGrouping(rowGroupCols, groupKeys)) {
+      var colsToGroupBy = new ArrayList<String>();
+
+      var rowGroupCol = rowGroupCols.get(groupKeys.size());
+      colsToGroupBy.add(rowGroupCol.getField());
+
+      return " group by " + Joiner.on(", ").join(colsToGroupBy);
+    } else {
+      // select all columns
+      return "";
+    }
+  }
+
   private String createWhereIds(List<String> ids) {
     if (ids.isEmpty()) {
       return "";
@@ -93,13 +300,29 @@ abstract class BaseDao<T> {
     return "where entity.id in (" + idsString + ")";
   }
 
-  private Number countAllByRequest(TableRequest request) {
-    String query = createHql(request, EnumTemplateType.COUNT_ALL);
-    try {
-      return (Number) createQuery(query).getSingleResult();
-    } catch (NoResultException e) {
-      return 0;
+  private Number getRowCount(TableRequest request, List<T> data) {
+    if (CollectionUtils.isEmpty(data)) {
+      return null;
     }
+
+    var currentLastRow = request.getStartRow() + data.size();
+    return currentLastRow <= request.getEndRow() ? currentLastRow : -1;
+  }
+
+  private List<T> cutResultsToPageSize(TableRequest request, List<T> results) {
+    var pageSize = request.getEndRow() - request.getStartRow();
+    if (nonNull(results) && results.size() > pageSize) {
+      return results.subList(0, pageSize);
+    } else {
+      return results;
+    }
+  }
+
+  private boolean isDoingGrouping(List<ColumnVO> rowGroupCols, List<String> groupKeys) {
+    // we are not doing grouping if at the lowest level. we are at the lowest level
+    // if we are grouping by more columns than we have keys for (that means the user
+    // has not expanded a lowest level group, OR we are not grouping at all).
+    return rowGroupCols.size() > groupKeys.size();
   }
 
   private String idToString(Object o) {

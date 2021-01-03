@@ -5,6 +5,7 @@
 
 <#assign filterModel = request.getFilterModel()>
 <#assign sortModel = request['sortModel']![]>
+<#assign rowGroupCols = request['rowGroupCols']![]>
 <#assign entityClass = entityClass>
 <#assign whereIds = whereIds!""/>
 <#assign orderBy = orderBy!""/>

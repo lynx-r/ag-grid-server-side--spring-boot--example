@@ -3,6 +3,7 @@
 <#include "../utils/assign_request.ftl">
 
 <@hql.hqlQueryIds
+rowGroupCols=rowGroupCols
 sortModel=sortModel
 filterModel=filterModel
 entityClass=entityClass

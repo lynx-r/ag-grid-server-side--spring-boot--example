@@ -1,35 +1,39 @@
 import { GridOptions, IServerSideGetRowsParams, IServerSideGetRowsRequest } from 'ag-grid-community'
 import { TABLE__ADD_FETCH_ROW_FOR_SCROLL } from 'config/constants'
 import { DataType } from 'model'
+import React from 'react'
 import { fetchData } from 'util/api'
 
 class ServerSideDatasource {
   gridOptions: GridOptions
   type: DataType
-  dataCount?: number
   request?: IServerSideGetRowsRequest
+  setDataCount: React.Dispatch<React.SetStateAction<number | undefined>>
 
-  constructor(gridOptions: GridOptions, type: DataType) {
+  constructor(gridOptions: GridOptions,
+              type: DataType,
+              setDataCount: React.Dispatch<React.SetStateAction<number | undefined>>
+  ) {
+    this.setDataCount = setDataCount
     this.gridOptions = {...gridOptions}
     this.type = type
   }
 
   async getRows({request, successCallback, failCallback, api}: IServerSideGetRowsParams) {
-    request.endRow += TABLE__ADD_FETCH_ROW_FOR_SCROLL
     this.request = request
     try {
       const data = await fetchData(this.type, request)
       if (!!data) {
-        this.dataCount = data.count
         const rows = data.data
         const lastRow = data.count
         if (lastRow === 0) {
           api.showNoRowsOverlay()
         }
+        this.setDataCount(data.count)
         successCallback(rows, lastRow)
       }
     } catch (e) {
-      this.dataCount = 0
+      this.setDataCount(0)
       failCallback()
     }
   }
