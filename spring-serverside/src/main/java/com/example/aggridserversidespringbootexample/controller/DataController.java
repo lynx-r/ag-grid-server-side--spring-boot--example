@@ -18,7 +18,7 @@ public class DataController {
   private final OlympicWinnerRepository olympicWinnerRepository;
 
   @PostMapping("olympic-winners")
-  public DataResponse<OlympicWinner> getOlympicWinners(@RequestBody TableRequest tableRequest) {
+  public DataResponse getOlympicWinners(@RequestBody TableRequest tableRequest) {
     return olympicWinnerRepository.findAllByRequest(tableRequest);
   }
 }

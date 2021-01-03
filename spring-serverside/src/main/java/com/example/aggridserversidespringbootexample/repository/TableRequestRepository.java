@@ -5,8 +5,8 @@ import com.example.aggridserversidespringbootexample.domain.response.DataRespons
 
 import java.util.Optional;
 
-public interface TableRequestRepository<E> {
+public interface TableRequestRepository {
 
-    DataResponse<E> findAllByRequest(TableRequest request);
+    DataResponse findAllByRequest(TableRequest request);
 
 }
