@@ -9,13 +9,13 @@ import {
 
 export const olympicWinnersGridOptions: GridOptions = {
   columnDefs: [
-    {field: 'athlete'},
+    {field: 'athlete', filter: 'agTextColumnFilter'},
     {field: 'country', rowGroup: true, hide: true},
     {field: 'sport', rowGroup: true, hide: true},
-    {field: 'year', filter: 'number', filterParams: {newRowsAction: 'keep'}},
-    {field: 'gold', aggFunc: 'sum'},
-    {field: 'silver', aggFunc: 'sum'},
-    {field: 'bronze', aggFunc: 'sum'},
+    {field: 'year', filter: 'agNumberColumnFilter'},
+    {field: 'gold', filter: 'agNumberColumnFilter', aggFunc: 'sum'},
+    {field: 'silver', filter: 'agNumberColumnFilter', aggFunc: 'sum'},
+    {field: 'bronze', filter: 'agNumberColumnFilter', aggFunc: 'sum'},
 
     // {
     //   headerName: 'Athlete',
@@ -92,11 +92,11 @@ export const olympicWinnersGridOptions: GridOptions = {
 
   rowModelType: 'serverSide',
 
-  defaultColDef: {
-    sortable: true
-  }
+  // defaultColDef: {
+  //   sortable: true
+  // }
 
   // noRowsOverlayComponent: 'noOlympicWinnersRowsOverlay',
-  // defaultColDef: {...defaultColDef},
+  defaultColDef: {...defaultColDef},
   // ...commonSettings
 }

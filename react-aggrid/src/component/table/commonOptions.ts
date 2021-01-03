@@ -24,7 +24,7 @@ export const defaultColDef: ColDef = {
   floatingFilter: true,
   filter: true,
   sortable: true,
-  headerValueGetter: headerValueGetter,
+  // headerValueGetter: headerValueGetter,
   filterParams: {
     newRowsAction: 'keep',
     debounceMs: 1500,

@@ -30,6 +30,9 @@ import static java.util.stream.Collectors.toList;
 @RequiredArgsConstructor
 abstract class BaseDao<T> {
 
+  private static final String ENTITY_ID_ALIAS = " entity.id ";
+  private static final String ENTITY_ALIAS = " entity ";
+
   @PersistenceContext protected EntityManager em;
 
   @Autowired private RequestMapperService requestMapperService;
@@ -88,7 +91,8 @@ abstract class BaseDao<T> {
       var selectGroup = createSelectGroup(request);
       var hql = selectGroup + from + where + groupBy + orderBy;
 
-      var results = createQueryMap(hql)
+      var results =
+          createQueryMap(hql)
               .setFirstResult(request.getStartRow())
               .setMaxResults(maxResult)
               .getResultList();
@@ -100,10 +104,11 @@ abstract class BaseDao<T> {
     var selectEntityId = createSelectEntityId();
     var hql = selectEntityId + from + where + groupBy + orderBy;
 
-    var ids = createQueryIds(hql)
-        .setFirstResult(request.getStartRow())
-        .setMaxResults(maxResult)
-        .getResultList();
+    var ids =
+        createQueryIds(hql)
+            .setFirstResult(request.getStartRow())
+            .setMaxResults(maxResult)
+            .getResultList();
 
     if (ids.isEmpty()) {
       return DataResponse.empty();
@@ -122,7 +127,7 @@ abstract class BaseDao<T> {
     var orderBy = createOrderBy(request, ids);
     var whereIds = createWhereIds(ids);
 
-    return "from " + getEntityName() + " entity " + whereIds + " " + orderBy;
+    return "from " + getEntityName() + ENTITY_ALIAS + whereIds + orderBy;
   }
 
   private String createSelectGroup(TableRequest request) {
@@ -137,21 +142,17 @@ abstract class BaseDao<T> {
     valueCols.forEach(
         (valueCol) ->
             colsToSelect.add(
-                valueCol.getAggFunc()
-                    + "("
-                    + valueCol.getField()
-                    + ") as "
-                    + valueCol.getField()));
+                valueCol.getAggFunc() + "(" + valueCol.getField() + ") as " + valueCol.getField()));
 
     return "select new map(" + Joiner.on(", ").join(colsToSelect) + ") ";
   }
 
   private String createSelectEntityId() {
-    return "select entity.id ";
+    return "select " + ENTITY_ID_ALIAS;
   }
 
   private String createSelectFrom() {
-    return "from " + getEntityName() + " entity ";
+    return "from " + getEntityName() + ENTITY_ALIAS;
   }
 
   private String createWhere(TableRequest request) {
@@ -230,17 +231,17 @@ abstract class BaseDao<T> {
     var filter = item.get("filter");
     switch (type) {
       case "equals":
-        return key + " = \"" + filter + "\"";
+        return key + " = '" + filter + "'";
       case "notEqual":
-        return key + " != \"" + filter + "\"";
+        return key + " != '" + filter + "'";
       case "contains":
-        return key + " like \"%" + filter + "%\"";
+        return key + " like '%" + filter + "%'";
       case "notContains":
-        return key + " not like \"%" + filter + "%\"";
+        return key + " not like '%" + filter + "%'";
       case "startsWith":
-        return key + " like \"" + filter + "%\"";
+        return key + " like '" + filter + "%'";
       case "endsWith":
-        return key + " like \"%" + filter + "\"";
+        return key + " like '%" + filter + "'";
       default:
         log.error("unknown text filter type: " + type);
         return "true";
@@ -248,15 +249,15 @@ abstract class BaseDao<T> {
   }
 
   private String createOrderBy(TableRequest request, List<Long> ids) {
-    var orderBy = "";
-    if (request.hasSort()) {
-      var caseBody =
-          IntStream.range(0, ids.size())
-              .mapToObj((i) -> format(" when %s then %s ", ids.get(i), i))
-              .collect(joining());
-      orderBy += " order by (case entity.id " + caseBody + " end) ";
+    if (!request.hasSort()) {
+      return "";
     }
-    return orderBy;
+
+    var caseBody =
+        IntStream.range(0, ids.size())
+            .mapToObj((i) -> format(" when %s then %s ", ids.get(i), i))
+            .collect(joining());
+    return format(" order by (case %s %s end) ", ENTITY_ID_ALIAS, caseBody) ;
   }
 
   private String createOrderBy(TableRequest request) {
@@ -306,7 +307,7 @@ abstract class BaseDao<T> {
 
   private String createWhereIds(List<Long> ids) {
     var idsString = Joiner.on(",").join(ids);
-    return "where entity.id in (" + idsString + ")";
+    return format(" where %s in (%s) ", ENTITY_ID_ALIAS, idsString);
   }
 
   private <U> Number getRowCount(TableRequest request, List<U> data) {
@@ -360,8 +361,9 @@ abstract class BaseDao<T> {
     return templateParser.prepareQuery(templateName, params);
   }
 
-  private TypedQuery<?> createQueryMap(String hql) {
-    return em.createQuery(hql, Map.class);
+  private TypedQuery<?> createQueryMap(String query) {
+    log.debug("QUERY:\n{}", query);
+    return em.createQuery(query, Map.class);
   }
 
   private Query createQuery(String query) {
