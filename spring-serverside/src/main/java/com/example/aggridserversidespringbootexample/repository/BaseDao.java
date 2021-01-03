@@ -116,6 +116,7 @@ abstract class BaseDao<T> {
     var rowGroupCols = request.getRowGroupCols();
     var groupKeys = request.getGroupKeys();
     var filterModel = request.getFilterModel();
+    var valueCols = request.getValueCols();
 
     var whereParts = new ArrayList<String>();
 
@@ -134,7 +135,16 @@ abstract class BaseDao<T> {
       keySet.forEach(
           (key) -> {
             var item = filterModel.get(key);
-            whereParts.add(createFilterHql(key, item));
+//            var aggFunc =
+//                valueCols.stream()
+//                    .filter(v -> v.getField().equals(key))
+//                    .map(ColumnVO::getAggFunc)
+//                    .findFirst();
+//            var keyAgg = key;
+//            if (aggFunc.isPresent()){
+//              keyAgg = format("%s ( %s )", aggFunc.get(), key);
+//            }
+            whereParts.add(createFilter(key, item));
           });
     }
 
@@ -145,20 +155,20 @@ abstract class BaseDao<T> {
     }
   }
 
-  private String createFilterHql(String key, Map<String, Object> item) {
+  private String createFilter(String key, Map<String, Object> item) {
     var filterType = (String) item.get("filterType");
     switch (filterType) {
       case "text":
-        return createTextFilterHql(key, item);
+        return createTextFilter(key, item);
       case "number":
-        return createNumberFilterHql(key, item);
+        return createNumberFilter(key, item);
       default:
         log.error("unkonwn filter type: " + filterType);
         return "";
     }
   }
 
-  private String createNumberFilterHql(String key, Map<String, Object> item) {
+  private String createNumberFilter(String key, Map<String, Object> item) {
     String type = (String) item.get("type");
     var filter = item.get("filter");
     var filterTo = item.get("filterTo");
@@ -183,7 +193,7 @@ abstract class BaseDao<T> {
     }
   }
 
-  private String createTextFilterHql(String key, Map<String, Object> item) {
+  private String createTextFilter(String key, Map<String, Object> item) {
     String type = (String) item.get("type");
     var filter = item.get("filter");
     switch (type) {
