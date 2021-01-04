@@ -1,5 +1,6 @@
 package com.example.aggridserversidespringbootexample.domain.request.tablerequestfields;
 
+import com.example.aggridserversidespringbootexample.util.ColumnVOFieldMapped;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 

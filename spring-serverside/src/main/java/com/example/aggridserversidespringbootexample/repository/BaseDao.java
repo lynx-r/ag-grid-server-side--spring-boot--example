@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static com.example.aggridserversidespringbootexample.util.ColumnVOFieldMapped.getMappedField;
 import static java.lang.String.format;
 import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.joining;
@@ -27,6 +28,7 @@ abstract class BaseDao<T> {
 
   private static final String ENTITY_ID_ALIAS = " entity.id ";
   private static final String ENTITY_ALIAS = " entity ";
+  private static final String ENTITY_ALIAS_TRIM = "entity";
 
   @PersistenceContext protected EntityManager em;
 
@@ -72,20 +74,13 @@ abstract class BaseDao<T> {
       return DataResponse.empty();
     }
 
-    hql = createQueryByIds(request, ids);
+    hql = createSelectByIds(request, ids);
     var results = createQueryEntities(hql).getResultList();
 
     var count = getRowCount(request, results);
     var resultsForPage = cutResultsToPageSize(request, results);
 
     return DataResponse.fromListAndLastRow(resultsForPage, count);
-  }
-
-  private String createQueryByIds(TableRequest request, List<Long> ids) {
-    var orderBy = createOrderBy(request, ids);
-    var whereIds = createWhereIds(ids);
-
-    return "from " + getEntityName() + ENTITY_ALIAS + whereIds + orderBy;
   }
 
   private String createSelectGroup(TableRequest request) {
@@ -95,22 +90,57 @@ abstract class BaseDao<T> {
     var colsToSelect = new ArrayList<String>();
 
     var rowGroupCol = rowGroupCols.get(groupKeys.size());
-    colsToSelect.add(rowGroupCol.getField() + " as " + rowGroupCol.getField());
+    var mappedField = getMappedField(rowGroupCol.getField());
+    colsToSelect.add(mappedField + " as " + rowGroupCol.getField());
 
     valueCols.forEach(
         (valueCol) ->
             colsToSelect.add(
-                valueCol.getAggFunc() + "(" + valueCol.getField() + ") as " + valueCol.getField()));
+                valueCol.getAggFunc() + "(" + getMappedField(valueCol.getField()) + ") as " + valueCol.getField()));
 
     return "select new map(" + Joiner.on(", ").join(colsToSelect) + ") ";
   }
 
   private String createSelectEntityId() {
-    return "select " + ENTITY_ID_ALIAS;
+    return "select distinct " + ENTITY_ID_ALIAS;
   }
 
   private String createSelectFrom() {
-    return "from " + getEntityName() + ENTITY_ALIAS;
+    var joining = getEntityJoins();
+    return "from " + getEntityName() + ENTITY_ALIAS + joining;
+  }
+
+  private String createSelectByIds(TableRequest request, List<Long> ids) {
+    var orderBy = createOrderBy(request, ids);
+    var whereIds = createWhereIds(ids);
+    var joining = getEntityFetchJoins();
+
+    return "select distinct "
+        + ENTITY_ALIAS
+        + " from "
+        + getEntityName()
+        + ENTITY_ALIAS
+        + joining
+        + whereIds
+        + orderBy;
+  }
+
+  private String getEntityFetchJoins() {
+    switch (getEntityName()) {
+      case "Employees":
+        return format(" join fetch %s.salaries salaries ", ENTITY_ALIAS_TRIM);
+      default:
+        return "";
+    }
+  }
+
+  private String getEntityJoins() {
+    switch (getEntityName()) {
+      case "Employees":
+        return format(" join %s.salaries salaries ", ENTITY_ALIAS_TRIM);
+      default:
+        return "";
+    }
   }
 
   private String createWhere(TableRequest request) {
@@ -126,7 +156,8 @@ abstract class BaseDao<T> {
           .forEach(
               (index) -> {
                 var key = groupKeys.get(index);
-                var colName = rowGroupCols.get(index).getField();
+                var colNameOrig = rowGroupCols.get(index).getField();
+                var colName = getMappedField(colNameOrig);
                 whereParts.add(colName + " = '" + key + "'");
               });
     }
@@ -136,11 +167,11 @@ abstract class BaseDao<T> {
       keySet.forEach(
           (key) -> {
             var item = filterModel.get(key);
-            var isAggFunc = valueCols.stream()
-                .map(ColumnVO::getField)
-                .anyMatch((f) -> f.equals(key));
+            var isAggFunc =
+                valueCols.stream().map(ColumnVO::getField).anyMatch((f) -> f.equals(key));
             if (!isAggFunc) {
-              whereParts.add(createFilter(key, item));
+              var keyMapped = getMappedField(key);
+              whereParts.add(createFilter(keyMapped, item));
             }
           });
     }
@@ -152,7 +183,8 @@ abstract class BaseDao<T> {
     }
   }
 
-  private String createFilter(String key, Map<String, Object> item) {
+  private String createFilter(String keyOrig, Map<String, Object> item) {
+    var key = getMappedField(keyOrig);
     var filterType = (String) item.get("filterType");
     switch (filterType) {
       case "text":
@@ -168,7 +200,7 @@ abstract class BaseDao<T> {
   }
 
   private String createNumberFilter(String key, Map<String, Object> item) {
-    String type = (String) item.get("type");
+    var type = (String) item.get("type");
     var filter = item.get("filter");
     var filterTo = item.get("filterTo");
     switch (type) {
@@ -193,7 +225,7 @@ abstract class BaseDao<T> {
   }
 
   private String createTextFilter(String key, Map<String, Object> item) {
-    String type = (String) item.get("type");
+    var type = (String) item.get("type");
     var filter = item.get("filter");
     switch (type) {
       case "equals":
@@ -215,7 +247,7 @@ abstract class BaseDao<T> {
   }
 
   private String createDateFilter(String key, Map<String, Object> item) {
-    String type = (String) item.get("type");
+    var type = (String) item.get("type");
     var dateFrom = item.get("dateFrom");
     var dateTo = item.get("dateTo");
     switch (type) {
@@ -283,7 +315,8 @@ abstract class BaseDao<T> {
       var colsToGroupBy = new ArrayList<String>();
 
       var rowGroupCol = rowGroupCols.get(groupKeys.size());
-      colsToGroupBy.add(rowGroupCol.getField());
+      var field = rowGroupCol.getField();
+      colsToGroupBy.add(field);
 
       return " group by " + Joiner.on(", ").join(colsToGroupBy);
     } else {
@@ -320,9 +353,9 @@ abstract class BaseDao<T> {
                     .filter(v -> v.getField().equals(key))
                     .map(ColumnVO::getAggFunc)
                     .findFirst();
-            var keyAgg = key;
             if (aggFunc.isPresent()) {
-              keyAgg = format("%s ( %s )", aggFunc.get(), key);
+              var keyMapped = getMappedField(key);
+              var keyAgg = format("%s ( %s )", aggFunc.get(), keyMapped);
               whereParts.add(createFilter(keyAgg, item));
             }
           });

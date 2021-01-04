@@ -18,7 +18,7 @@ public class Salaries {
   @Id
   private LocalDate fromDate;
 
-  private Long salary;
+  private Integer salary;
   private LocalDate toDate;
 
 }
