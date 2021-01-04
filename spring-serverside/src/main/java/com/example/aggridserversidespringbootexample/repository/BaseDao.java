@@ -159,6 +159,8 @@ abstract class BaseDao<T> {
         return createTextFilter(key, item);
       case "number":
         return createNumberFilter(key, item);
+      case "date":
+        return createDateFilter(key, item);
       default:
         log.error("unkonwn filter type: " + filterType);
         return "";
@@ -208,6 +210,27 @@ abstract class BaseDao<T> {
         return key + " like '%" + filter + "'";
       default:
         log.error("unknown text filter type: " + type);
+        return "true";
+    }
+  }
+
+  private String createDateFilter(String key, Map<String, Object> item) {
+    String type = (String) item.get("type");
+    var dateFrom = item.get("dateFrom");
+    var dateTo = item.get("dateTo");
+    switch (type) {
+      case "equals":
+        return key + " = '" + dateFrom + "'";
+      case "notEqual":
+        return key + " != '" + dateFrom + "'";
+      case "greaterThan":
+        return key + " > '" + dateFrom + "'";
+      case "lessThan":
+        return key + " < '" + dateFrom + "'";
+      case "inRange":
+        return "(" + key + " between '" + dateFrom + "' and '" + dateTo + "')";
+      default:
+        log.error("unknown date filter type: " + type);
         return "true";
     }
   }

@@ -2,9 +2,9 @@ import { DataTable } from 'component'
 import { DataType } from 'model'
 import React from 'react'
 
-const OlympicWinners = () =>
+const Employees = () =>
   <div>
-    <DataTable type={DataType.OLYMPIC_WINNER}/>
+    <DataTable type={DataType.EMPLOYEES}/>
   </div>
 
-export default OlympicWinners
+export default Employees

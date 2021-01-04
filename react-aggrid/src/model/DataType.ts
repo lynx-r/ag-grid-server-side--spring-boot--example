@@ -1,5 +1,6 @@
 enum DataType {
-  OLYMPIC_WINNER = 'olympic-winners'
+  OLYMPIC_WINNER = 'olympic-winners',
+  EMPLOYEES = 'employees',
 }
 
 export default DataType

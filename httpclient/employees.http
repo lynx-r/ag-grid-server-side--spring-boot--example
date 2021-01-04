@@ -1,0 +1,51 @@
+POST http://localhost:8080/api/employees
+Content-Type: application/json
+
+{
+  "startRow": 0,
+  "endRow": 50,
+  "rowGroupCols": [],
+  "valueCols": [],
+  "pivotCols": [],
+  "pivotMode": false,
+  "groupKeys": [],
+  "filterModel": {
+  },
+  "sortModel": []
+}
+
+###
+
+POST http://localhost:8080/api/employees
+Content-Type: application/json
+
+{
+  "startRow": 0,
+  "endRow": 50,
+  "rowGroupCols": [],
+  "valueCols": [],
+  "pivotCols": [],
+  "pivotMode": false,
+  "groupKeys": [],
+  "filterModel": {
+    "athlete": {
+      "filterType": "text",
+      "type": "contains",
+      "filter": "Michael"
+    },
+    "age": {
+      "filterType": "number",
+      "type": "greaterThanOrEqual",
+      "filter": 30,
+      "filterTo": null
+    }
+  },
+  "sortModel": [
+    {
+      "colId": "year",
+      "sort": "asc"
+    }
+  ]
+}
+
+###

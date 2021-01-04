@@ -40,7 +40,7 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:mysql://0.0.0.0:23306/sample_data
+    url: jdbc:mysql://0.0.0.0:23306/employees
     username: root
     password: root
 
@@ -48,11 +48,13 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        default_schema: sample_data
+        default_schema: employees
 
 logging:
   level:
     com.example.aggridserversidespringbootexample: debug
     org.springframework: info
+#    org.springframework.jdbc: debug
+#    org.hibernate: debug
 
 originUrl: ${ORIGIN_URL:http://localhost:3000}

@@ -3,6 +3,7 @@ import React, { lazy, Suspense } from 'react'
 import { Redirect, Route, Switch } from 'react-router-dom'
 
 const OlympicWinners = lazy(() => import('page/OlympicWinners'))
+const Employees = lazy(() => import('page/Employees'))
 const Page404 = lazy(() => import('page/Page404'))
 
 const Routes = () =>
@@ -13,6 +14,10 @@ const Routes = () =>
 
     <Route exact path={EnumPages.OLYMPIC_WINNERS}>
       <OlympicWinners/>
+    </Route>
+
+    <Route exact path={EnumPages.EMPLOYEES}>
+      <Employees/>
     </Route>
 
     <Route>

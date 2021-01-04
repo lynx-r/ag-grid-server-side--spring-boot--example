@@ -14,6 +14,9 @@ export const DefaultMenuHeader = () => {
       <Link to={EnumPages.OLYMPIC_WINNERS}>
         Olympic Winners
       </Link>
+      <Link to={EnumPages.EMPLOYEES}>
+        Employees
+      </Link>
     </Flex>
   );
 };
