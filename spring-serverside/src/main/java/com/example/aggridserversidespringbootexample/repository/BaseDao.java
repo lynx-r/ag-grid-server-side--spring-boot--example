@@ -42,11 +42,12 @@ abstract class BaseDao<T> {
     var from = createSelectFrom();
     var where = createWhere(request);
     var orderBy = createOrderBy(request);
-    var groupBy = createGroupBy(request);
 
     if (isDoingGrouping(request.getRowGroupCols(), request.getGroupKeys())) {
       var selectGroup = createSelectGroup(request);
-      var hql = selectGroup + from + where + groupBy + orderBy;
+      var groupBy = createGroupBy(request);
+      var having = createHaving(request);
+      var hql = selectGroup + from + where + groupBy + orderBy + having;
 
       var results =
           createQueryMap(hql)
@@ -59,7 +60,7 @@ abstract class BaseDao<T> {
     }
 
     var selectEntityId = createSelectEntityId();
-    var hql = selectEntityId + from + where + groupBy + orderBy;
+    var hql = selectEntityId + from + where + orderBy;
 
     var ids =
         createQueryIds(hql)
@@ -135,16 +136,12 @@ abstract class BaseDao<T> {
       keySet.forEach(
           (key) -> {
             var item = filterModel.get(key);
-//            var aggFunc =
-//                valueCols.stream()
-//                    .filter(v -> v.getField().equals(key))
-//                    .map(ColumnVO::getAggFunc)
-//                    .findFirst();
-//            var keyAgg = key;
-//            if (aggFunc.isPresent()){
-//              keyAgg = format("%s ( %s )", aggFunc.get(), key);
-//            }
-            whereParts.add(createFilter(key, item));
+            var isAggFunc = valueCols.stream()
+                .map(ColumnVO::getField)
+                .anyMatch((f) -> f.equals(key));
+            if (!isAggFunc) {
+              whereParts.add(createFilter(key, item));
+            }
           });
     }
 
@@ -224,7 +221,7 @@ abstract class BaseDao<T> {
         IntStream.range(0, ids.size())
             .mapToObj((i) -> format(" when %s then %s ", ids.get(i), i))
             .collect(joining());
-    return format(" order by (case %s %s end) ", ENTITY_ID_ALIAS, caseBody) ;
+    return format(" order by (case %s %s end) ", ENTITY_ID_ALIAS, caseBody);
   }
 
   private String createOrderBy(TableRequest request) {
@@ -268,6 +265,49 @@ abstract class BaseDao<T> {
       return " group by " + Joiner.on(", ").join(colsToGroupBy);
     } else {
       // select all columns
+      return "";
+    }
+  }
+
+  private String createHaving(TableRequest request) {
+    var rowGroupCols = request.getRowGroupCols();
+    var groupKeys = request.getGroupKeys();
+    var filterModel = request.getFilterModel();
+    var valueCols = request.getValueCols();
+
+    var whereParts = new ArrayList<String>();
+
+    //    if (!groupKeys.isEmpty()) {
+    //      IntStream.range(0, groupKeys.size())
+    //          .forEach(
+    //              (index) -> {
+    //                var key = groupKeys.get(index);
+    //                var colName = rowGroupCols.get(index).getField();
+    //                whereParts.add(colName + " = '" + key + "'");
+    //              });
+    //    }
+
+    if (!filterModel.isEmpty()) {
+      var keySet = filterModel.keySet();
+      keySet.forEach(
+          (key) -> {
+            var item = filterModel.get(key);
+            var aggFunc =
+                valueCols.stream()
+                    .filter(v -> v.getField().equals(key))
+                    .map(ColumnVO::getAggFunc)
+                    .findFirst();
+            var keyAgg = key;
+            if (aggFunc.isPresent()) {
+              keyAgg = format("%s ( %s )", aggFunc.get(), key);
+              whereParts.add(createFilter(keyAgg, item));
+            }
+          });
+    }
+
+    if (!whereParts.isEmpty()) {
+      return " having " + Joiner.on(" and ").join(whereParts);
+    } else {
       return "";
     }
   }
