@@ -2,11 +2,12 @@ package com.example.aggridserversidespringbootexample.util;
 
 import java.util.Map;
 
-public class ColumnVOFieldMapped {
+public class FieldMapper {
 
   public static String getMappedField(String field) {
     var map = Map.of(
-        "totalSalary",  "salaries.salary",
+        "totalSalary",  "sum(salaries.salary)",
+        "salariesAsString", "salaries.salary",
         "salariesFromDate", "salaries.fromDate"
     );
     if (map.containsKey(field)) {

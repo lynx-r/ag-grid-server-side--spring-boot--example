@@ -16,7 +16,8 @@ export const employeesGridOptions: GridOptions = {
     {field: 'gender', filter: 'agTextColumnFilter'},
     {field: 'hireDate', filter: 'agDateColumnFilter'},
     {field: 'birthDate', filter: 'agDateColumnFilter'},
-    {field: 'totalSalary', filter: 'agNumberColumnFilter', aggFunc: 'sum'},
+    {field: 'totalSalary', filter: false},
+    {field: 'salariesAsString', headerName: 'Salaries', filter: 'agNumberColumnFilter'},
   ],
 
   rowModelType: 'serverSide',

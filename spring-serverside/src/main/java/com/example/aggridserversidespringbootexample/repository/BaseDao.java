@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static com.example.aggridserversidespringbootexample.util.ColumnVOFieldMapped.getMappedField;
+import static com.example.aggridserversidespringbootexample.util.FieldMapper.getMappedField;
 import static java.lang.String.format;
 import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.joining;

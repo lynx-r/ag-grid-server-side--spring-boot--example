@@ -1,10 +1,14 @@
 package com.example.aggridserversidespringbootexample.domain.entity;
 
+import com.google.common.base.Joiner;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import javax.persistence.*;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.OneToMany;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -27,8 +31,12 @@ public class Employees {
   @JoinColumn(name = "emp_no")
   private List<Salaries> salaries;
 
+  public String getSalariesAsString() {
+    return Joiner.on(", ")
+        .join(salaries.stream().map(Salaries::getSalary).map(Object::toString).collect(toList()));
+  }
+
   public Integer getTotalSalary() {
     return salaries.stream().mapToInt(Salaries::getSalary).sum();
   }
-
 }
