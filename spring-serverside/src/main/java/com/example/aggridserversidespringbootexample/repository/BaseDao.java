@@ -14,6 +14,7 @@ import javax.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static com.example.aggridserversidespringbootexample.config.Constants.*;
@@ -43,24 +44,11 @@ abstract class BaseDao<T> {
 
   private DataResponse findAll(TableRequest request) {
     var count = getEntitiesCount(request);
-
-    var from = createSelectFrom();
-    var where = createWhere(request);
-    //    var orderBy = createOrderBy(request);
-    var selectEntityId = createSelectEntityId();
-    var hqlSelectIds = selectEntityId + from + where;
-
-    var startRow = request.getStartRow();
-    var maxResult = request.getEndRow() - startRow + 1;
-    var ids =
-        createQueryIds(hqlSelectIds)
-            .setFirstResult(startRow)
-            .setMaxResults(maxResult)
-            .getResultList();
-
-    var hqlSelectByIds = createSelectByIds(request, ids);
-    var results = createQueryByIds(hqlSelectByIds).getResultList();
-
+    if (count.intValue() == 0) {
+      return DataResponse.empty();
+    }
+    var ids = getEntitiesIds(request);
+    var results = getEntitiesByIds(request, ids);
     return DataResponse.fromListAndCount(results, count);
   }
 
@@ -136,7 +124,15 @@ abstract class BaseDao<T> {
     return "select count( distinct " + ENTITY_ID_ALIAS + " ) ";
   }
 
-  private String createSelectEntityId() {
+  private String createSelectEntityId(TableRequest request) {
+    if (request.hasSort()) {
+      var sortFields =
+          request.getSortModel().stream()
+              .map(s -> getMappedField(s.getColId()))
+              .collect(joining(", "));
+
+      return "select distinct " + ENTITY_ID_ALIAS + ", " + sortFields;
+    }
     return "select distinct " + ENTITY_ID_ALIAS;
   }
 
@@ -314,6 +310,10 @@ abstract class BaseDao<T> {
   }
 
   private String createOrderBy(TableRequest request) {
+    if (!request.hasSort()) {
+      return "";
+    }
+
     var rowGroupCols = request.getRowGroupCols();
     var groupKeys = request.getGroupKeys();
     var sortModel = request.getSortModel();
@@ -321,18 +321,16 @@ abstract class BaseDao<T> {
     var grouping = isDoingGrouping(request);
 
     var sortParts = new ArrayList<String>();
-    if (!sortModel.isEmpty()) {
+    var groupColIds =
+        rowGroupCols.stream().map(ColumnVO::getId).limit(groupKeys.size() + 1).collect(toList());
 
-      var groupColIds =
-          rowGroupCols.stream().map(ColumnVO::getId).limit(groupKeys.size() + 1).collect(toList());
-
-      sortModel.forEach(
-          (item) -> {
-            if (!grouping || groupColIds.contains(item.getColId())) {
-              sortParts.add(item.getColId() + ' ' + item.getSort());
-            }
-          });
-    }
+    sortModel.forEach(
+        (item) -> {
+          if (!grouping || groupColIds.contains(item.getColId())) {
+            var mappedColId = getMappedField(item.getColId());
+            sortParts.add(mappedColId + ' ' + item.getSort());
+          }
+        });
 
     if (!sortParts.isEmpty()) {
       return " order by " + Joiner.on(", ").join(sortParts);
@@ -420,14 +418,15 @@ abstract class BaseDao<T> {
     return em.createQuery(query, Map.class);
   }
 
-  private TypedQuery<T> createQueryByIds(String query) {
-    log.debug("HQL QUERY:\n{}", query);
-    return em.createQuery(query, clazz);
+  private List<T> getEntitiesByIds(TableRequest request, List<Long> ids) {
+    var hql = createSelectByIds(request, ids);
+    log.debug("HQL QUERY:\n{}", hql);
+    return em.createQuery(hql, clazz).getResultList();
   }
 
   private Number getEntitiesCount(TableRequest request) {
-    var from = createSelectFrom();
     var selectEntityCount = createSelectEntityCount();
+    var from = createSelectFrom();
     var joining = ""; // getEntityFetchJoins();
     var where = createWhere(request);
     var hql = selectEntityCount + from + joining + where;
@@ -440,9 +439,27 @@ abstract class BaseDao<T> {
     }
   }
 
-  private TypedQuery<Long> createQueryIds(String query) {
-    log.debug("HQL QUERY:\n{}", query);
-    return em.createQuery(query, Long.class);
+  private List<Long> getEntitiesIds(TableRequest request) {
+    var selectEntityId = createSelectEntityId(request);
+    var from = createSelectFrom();
+    var where = createWhere(request);
+    var orderBy = createOrderBy(request);
+    var hql = selectEntityId + from + where + orderBy;
+
+    var startRow = request.getStartRow();
+    var maxResult = request.getEndRow() - startRow + 1;
+
+    Function<Object, Long> mapToLong =
+        (Object r) -> {
+          if (r instanceof Long) {
+            return (Long) r;
+          }
+          return (Long) ((Object[]) r)[0];
+        };
+    log.debug("HQL QUERY:\n{}", hql);
+    List<?> list =
+        em.createQuery(hql).setFirstResult(startRow).setMaxResults(maxResult).getResultList();
+    return list.stream().map(mapToLong).collect(toList());
   }
 
   private String getEntityName() {
