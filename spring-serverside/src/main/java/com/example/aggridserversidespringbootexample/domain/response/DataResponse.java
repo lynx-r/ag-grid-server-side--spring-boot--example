@@ -14,13 +14,13 @@ import static java.util.Objects.isNull;
 public class DataResponse {
 
   private List<?> rows;
-  private Number lastRow;
+  private Number count;
 
   public static DataResponse empty() {
     return new DataResponse(Collections.emptyList(), 0);
   }
 
-  public static DataResponse fromListAndLastRow(List<?> data, Number lastRow) {
+  public static DataResponse fromListAndCount(List<?> data, Number lastRow) {
     if (isNull(lastRow)) {
       lastRow = data.size();
     }

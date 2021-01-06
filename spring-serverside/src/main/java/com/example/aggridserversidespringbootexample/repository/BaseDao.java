@@ -6,9 +6,9 @@ import com.example.aggridserversidespringbootexample.domain.response.DataRespons
 import com.google.common.base.Joiner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.CollectionUtils;
 
 import javax.persistence.EntityManager;
+import javax.persistence.NoResultException;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TypedQuery;
 import java.util.ArrayList;
@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static com.example.aggridserversidespringbootexample.config.Constants.*;
 import static com.example.aggridserversidespringbootexample.util.FieldMapper.getMappedField;
 import static java.lang.String.format;
 import static java.util.Objects.nonNull;
@@ -26,10 +27,6 @@ import static java.util.stream.Collectors.toList;
 @RequiredArgsConstructor
 abstract class BaseDao<T> {
 
-  private static final String ENTITY_ID_ALIAS = " entity.id ";
-  private static final String ENTITY_ALIAS = " entity ";
-  private static final String ENTITY_ALIAS_TRIM = "entity";
-
   @PersistenceContext protected EntityManager em;
 
   private Class<T> clazz;
@@ -39,48 +36,72 @@ abstract class BaseDao<T> {
   }
 
   public DataResponse findAllByRequest(TableRequest request) {
-    var maxResult = request.getEndRow() - request.getStartRow() + 1;
+    var startRow = request.getStartRow();
+    var maxResult = request.getEndRow() - startRow + 1;
+
+    if (isDoingGrouping(request.getRowGroupCols(), request.getGroupKeys())) {
+      var from = createSelectFrom();
+      var where = createWhere(request);
+      var orderBy = createOrderBy(request);
+      var selectGroupCount = createSelectGroupCount(request);
+      var groupBy = createGroupBy(request);
+      var having = createHaving(request);
+      var hql = selectGroupCount + from + where + groupBy + orderBy + having;
+
+      Number count = 0;
+//      try {
+//        count = createSelectCount(hql).getSingleResult();
+//      } catch (NoResultException e) {
+//        return DataResponse.empty();
+//      }
+
+      var results = createQueryMap(hql)
+          .setFirstResult(startRow)
+          .setMaxResults(maxResult)
+          .getResultList();
+      return DataResponse.fromListAndCount(results, count);
+    }
+
+    var count = createSelectCount(request);
 
     var from = createSelectFrom();
     var where = createWhere(request);
-    var orderBy = createOrderBy(request);
-
-    if (isDoingGrouping(request.getRowGroupCols(), request.getGroupKeys())) {
-      var selectGroup = createSelectGroup(request);
-      var groupBy = createGroupBy(request);
-      var having = createHaving(request);
-      var hql = selectGroup + from + where + groupBy + orderBy + having;
-
-      var results =
-          createQueryMap(hql)
-              .setFirstResult(request.getStartRow())
-              .setMaxResults(maxResult)
-              .getResultList();
-      var count = getRowCount(request, results);
-      var resultsForPage = cutResultsToPageSize(request, results);
-      return DataResponse.fromListAndLastRow(resultsForPage, count);
-    }
+//    var orderBy = createOrderBy(request);
 
     var selectEntityId = createSelectEntityId();
-    var hql = selectEntityId + from + where + orderBy;
-
+    var hql = selectEntityId + from + where;
     var ids =
-        createQueryIds(hql)
-            .setFirstResult(request.getStartRow())
+        createSelectIds(hql)
+            .setFirstResult(startRow)
             .setMaxResults(maxResult)
             .getResultList();
-
-    if (ids.isEmpty()) {
-      return DataResponse.empty();
-    }
 
     hql = createSelectByIds(request, ids);
     var results = createQueryEntities(hql).getResultList();
 
-    var count = getRowCount(request, results);
-    var resultsForPage = cutResultsToPageSize(request, results);
+    return DataResponse.fromListAndCount(results, count);
+  }
 
-    return DataResponse.fromListAndLastRow(resultsForPage, count);
+  private String createSelectGroupCount(TableRequest request) {
+    var rowGroupCols = request.getRowGroupCols();
+    var valueCols = request.getValueCols();
+    var groupKeys = request.getGroupKeys();
+    var colsToSelect = new ArrayList<String>();
+
+    var rowGroupCol = rowGroupCols.get(groupKeys.size());
+    var mappedField = getMappedField(rowGroupCol.getField());
+    colsToSelect.add(mappedField + " as " + rowGroupCol.getField());
+
+    valueCols.forEach(
+        (valueCol) ->
+            colsToSelect.add(
+                valueCol.getAggFunc()
+                    + "("
+                    + getMappedField(valueCol.getField())
+                    + ") as "
+                    + valueCol.getField()));
+
+    return "select new map(" + Joiner.on(", ").join(colsToSelect) + ") ";
   }
 
   private String createSelectGroup(TableRequest request) {
@@ -96,9 +117,17 @@ abstract class BaseDao<T> {
     valueCols.forEach(
         (valueCol) ->
             colsToSelect.add(
-                valueCol.getAggFunc() + "(" + getMappedField(valueCol.getField()) + ") as " + valueCol.getField()));
+                valueCol.getAggFunc()
+                    + "("
+                    + getMappedField(valueCol.getField())
+                    + ") as "
+                    + valueCol.getField()));
 
     return "select new map(" + Joiner.on(", ").join(colsToSelect) + ") ";
+  }
+
+  private String createSelectEntityCount() {
+    return "select count( distinct " + ENTITY_ID_ALIAS + " ) ";
   }
 
   private String createSelectEntityId() {
@@ -107,7 +136,7 @@ abstract class BaseDao<T> {
 
   private String createSelectFrom() {
     var joining = getEntityJoins();
-    return "from " + getEntityName() + ENTITY_ALIAS + joining;
+    return " from " + getEntityName() + ENTITY_ALIAS + joining;
   }
 
   private String createSelectByIds(TableRequest request, List<Long> ids) {
@@ -183,8 +212,7 @@ abstract class BaseDao<T> {
     }
   }
 
-  private String createFilter(String keyOrig, Map<String, Object> item) {
-    var key = getMappedField(keyOrig);
+  private String createFilter(String key, Map<String, Object> item) {
     var filterType = (String) item.get("filterType");
     switch (filterType) {
       case "text":
@@ -373,15 +401,6 @@ abstract class BaseDao<T> {
     return format(" where %s in (%s) ", ENTITY_ID_ALIAS, idsString);
   }
 
-  private <U> Number getRowCount(TableRequest request, List<U> data) {
-    if (CollectionUtils.isEmpty(data)) {
-      return null;
-    }
-
-    var currentLastRow = request.getStartRow() + data.size();
-    return currentLastRow <= request.getEndRow() ? currentLastRow : -1;
-  }
-
   private <U> List<U> cutResultsToPageSize(TableRequest request, List<U> results) {
     var pageSize = request.getEndRow() - request.getStartRow();
     if (nonNull(results) && results.size() > pageSize) {
@@ -408,7 +427,23 @@ abstract class BaseDao<T> {
     return em.createQuery(query, clazz);
   }
 
-  private TypedQuery<Long> createQueryIds(String query) {
+  private Number createSelectCount(TableRequest request) {
+    var from = createSelectFrom();
+    var selectEntityCount = createSelectEntityCount();
+    var joining = "";//getEntityFetchJoins();
+    var where = createWhere(request);
+
+    var hql = selectEntityCount + from + joining + where;
+    Number count;
+    try {
+    log.debug("HQL COUNT:\n{}", hql);
+    return em.createQuery(hql, Number.class).getSingleResult();
+  } catch (NoResultException e) {
+    return 0;
+  }
+  }
+
+  private TypedQuery<Long> createSelectIds(String query) {
     log.debug("HQL QUERY:\n{}", query);
     return em.createQuery(query, Long.class);
   }

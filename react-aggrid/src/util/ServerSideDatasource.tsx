@@ -25,12 +25,12 @@ class ServerSideDatasource {
       const data = await fetchData(this.type, request)
       if (!!data) {
         const rows = data.rows
-        const lastRow = data.lastRow
-        if (lastRow === 0) {
+        const count = data.count
+        if (count === 0) {
           api.showNoRowsOverlay()
         }
-        this.setDataCount(data.lastRow)
-        successCallback(rows, lastRow)
+        this.setDataCount(data.count)
+        successCallback(rows, count)
       }
     } catch (e) {
       this.setDataCount(0)
