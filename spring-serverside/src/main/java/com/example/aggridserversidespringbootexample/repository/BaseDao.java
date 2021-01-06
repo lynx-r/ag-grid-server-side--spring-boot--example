@@ -1,35 +1,22 @@
 package com.example.aggridserversidespringbootexample.repository;
 
 import com.example.aggridserversidespringbootexample.domain.request.TableRequest;
-import com.example.aggridserversidespringbootexample.domain.request.tablerequestfields.ColumnVO;
 import com.example.aggridserversidespringbootexample.domain.response.DataResponse;
-import com.google.common.base.Joiner;
+import com.example.aggridserversidespringbootexample.service.TableRequestFlatRepository;
+import com.example.aggridserversidespringbootexample.service.TableRequestGroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.persistence.EntityManager;
-import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
-import javax.persistence.TypedQuery;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.IntStream;
-
-import static com.example.aggridserversidespringbootexample.config.Constants.*;
-import static com.example.aggridserversidespringbootexample.util.FieldMapper.getMappedField;
-import static java.lang.String.format;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 
 @Slf4j
 @RequiredArgsConstructor
 abstract class BaseDao<T> {
 
-  @PersistenceContext protected EntityManager em;
-
   private Class<T> clazz;
+
+  @Autowired
+  private ApplicationContext applicationContext;
 
   public BaseDao(Class<T> clazz) {
     this.clazz = clazz;
@@ -43,366 +30,31 @@ abstract class BaseDao<T> {
   }
 
   private DataResponse findAll(TableRequest request) {
-    var count = getEntitiesCount(request);
+    var repo
+        = applicationContext.getBean(TableRequestFlatRepository.class);
+    repo.setEntityName(getEntityName());
+
+    var count = repo.getCount(request);
     if (count.intValue() == 0) {
       return DataResponse.empty();
     }
-    var ids = getEntitiesIds(request);
-    var results = getEntitiesByIds(request, ids);
+
+    var results = repo.getEntities(request);
     return DataResponse.fromListAndCount(results, count);
   }
 
   private DataResponse findAllGrouped(TableRequest request) {
-    var startRow = request.getStartRow();
-    var maxResult = request.getEndRow() - startRow + 1;
+    var repo
+        = applicationContext.getBean(TableRequestGroupRepository.class);
+    repo.setEntityName(getEntityName());
 
-    var from = createSelectFrom();
-    var where = createWhere(request);
-    var orderBy = createOrderBy(request);
-    var selectGroupCount = createSelectGroupCount(request);
-    var groupBy = createGroupBy(request);
-    var having = createHaving(request);
-    var hql = selectGroupCount + from + where + groupBy + orderBy + having;
+    Number count = repo.getCount(request);
+    if (count.intValue() == 0) {
+      return DataResponse.empty();
+    }
 
-    Number count = 0;
-    //      try {
-    //        count = createSelectCount(hql).getSingleResult();
-    //      } catch (NoResultException e) {
-    //        return DataResponse.empty();
-    //      }
-
-    var results =
-        createQueryMap(hql).setFirstResult(startRow).setMaxResults(maxResult).getResultList();
+    var results = repo.getEntities(request);
     return DataResponse.fromListAndCount(results, count);
-  }
-
-  private String createSelectGroupCount(TableRequest request) {
-    var rowGroupCols = request.getRowGroupCols();
-    var valueCols = request.getValueCols();
-    var groupKeys = request.getGroupKeys();
-    var colsToSelect = new ArrayList<String>();
-
-    var rowGroupCol = rowGroupCols.get(groupKeys.size());
-    var mappedField = getMappedField(rowGroupCol.getField());
-    colsToSelect.add(mappedField + " as " + rowGroupCol.getField());
-
-    valueCols.forEach(
-        (valueCol) ->
-            colsToSelect.add(
-                valueCol.getAggFunc()
-                    + "("
-                    + getMappedField(valueCol.getField())
-                    + ") as "
-                    + valueCol.getField()));
-
-    return "select new map(" + Joiner.on(", ").join(colsToSelect) + ") ";
-  }
-
-  private String createSelectGroup(TableRequest request) {
-    var rowGroupCols = request.getRowGroupCols();
-    var valueCols = request.getValueCols();
-    var groupKeys = request.getGroupKeys();
-    var colsToSelect = new ArrayList<String>();
-
-    var rowGroupCol = rowGroupCols.get(groupKeys.size());
-    var mappedField = getMappedField(rowGroupCol.getField());
-    colsToSelect.add(mappedField + " as " + rowGroupCol.getField());
-
-    valueCols.forEach(
-        (valueCol) ->
-            colsToSelect.add(
-                valueCol.getAggFunc()
-                    + "("
-                    + getMappedField(valueCol.getField())
-                    + ") as "
-                    + valueCol.getField()));
-
-    return "select new map(" + Joiner.on(", ").join(colsToSelect) + ") ";
-  }
-
-  private String createSelectEntityCount() {
-    return "select count( distinct " + ENTITY_ID_ALIAS + " ) ";
-  }
-
-  private String createSelectEntityId(TableRequest request) {
-    if (request.hasSort()) {
-      var sortFields =
-          request.getSortModel().stream()
-              .map(s -> getMappedField(s.getColId()))
-              .collect(joining(", "));
-
-      return "select distinct " + ENTITY_ID_ALIAS + ", " + sortFields;
-    }
-    return "select distinct " + ENTITY_ID_ALIAS;
-  }
-
-  private String createSelectFrom() {
-    var joining = getEntityJoins();
-    return " from " + getEntityName() + ENTITY_ALIAS + joining;
-  }
-
-  private String createSelectByIds(TableRequest request, List<Long> ids) {
-    var orderBy = createOrderBy(request, ids);
-    var whereIds = createWhereIds(ids);
-    var joining = getEntityFetchJoins();
-
-    return "select distinct "
-        + ENTITY_ALIAS
-        + " from "
-        + getEntityName()
-        + ENTITY_ALIAS
-        + joining
-        + whereIds
-        + orderBy;
-  }
-
-  private String getEntityFetchJoins() {
-    switch (getEntityName()) {
-      case "Employees":
-        return format(" join fetch %s.salaries salaries ", ENTITY_ALIAS_TRIM);
-      default:
-        return "";
-    }
-  }
-
-  private String getEntityJoins() {
-    switch (getEntityName()) {
-      case "Employees":
-        return format(" join %s.salaries salaries ", ENTITY_ALIAS_TRIM);
-      default:
-        return "";
-    }
-  }
-
-  private String createWhere(TableRequest request) {
-    var rowGroupCols = request.getRowGroupCols();
-    var groupKeys = request.getGroupKeys();
-    var filterModel = request.getFilterModel();
-    var valueCols = request.getValueCols();
-
-    var whereParts = new ArrayList<String>();
-
-    if (!groupKeys.isEmpty()) {
-      IntStream.range(0, groupKeys.size())
-          .forEach(
-              (index) -> {
-                var key = groupKeys.get(index);
-                var colNameOrig = rowGroupCols.get(index).getField();
-                var colName = getMappedField(colNameOrig);
-                whereParts.add(colName + " = '" + key + "'");
-              });
-    }
-
-    if (!filterModel.isEmpty()) {
-      var keySet = filterModel.keySet();
-      keySet.forEach(
-          (key) -> {
-            var item = filterModel.get(key);
-            var isAggFunc =
-                valueCols.stream().map(ColumnVO::getField).anyMatch((f) -> f.equals(key));
-            if (!isAggFunc) {
-              var keyMapped = getMappedField(key);
-              whereParts.add(createFilter(keyMapped, item));
-            }
-          });
-    }
-
-    if (!whereParts.isEmpty()) {
-      return " where " + Joiner.on(" and ").join(whereParts);
-    } else {
-      return "";
-    }
-  }
-
-  private String createFilter(String key, Map<String, Object> item) {
-    var filterType = (String) item.get("filterType");
-    switch (filterType) {
-      case "text":
-        return createTextFilter(key, item);
-      case "number":
-        return createNumberFilter(key, item);
-      case "date":
-        return createDateFilter(key, item);
-      default:
-        log.error("unkonwn filter type: " + filterType);
-        return "";
-    }
-  }
-
-  private String createNumberFilter(String key, Map<String, Object> item) {
-    var type = (String) item.get("type");
-    var filter = item.get("filter");
-    var filterTo = item.get("filterTo");
-    switch (type) {
-      case "equals":
-        return key + " = " + filter;
-      case "notEqual":
-        return key + " != " + filter;
-      case "greaterThan":
-        return key + " > " + filter;
-      case "greaterThanOrEqual":
-        return key + " >= " + filter;
-      case "lessThan":
-        return key + " < " + filter;
-      case "lessThanOrEqual":
-        return key + " <= " + filter;
-      case "inRange":
-        return "(" + key + " >= " + filter + " and " + key + " <= " + filterTo + ")";
-      default:
-        log.error("unknown number filter type: " + type);
-        return "true";
-    }
-  }
-
-  private String createTextFilter(String key, Map<String, Object> item) {
-    var type = (String) item.get("type");
-    var filter = item.get("filter");
-    switch (type) {
-      case "equals":
-        return key + " = '" + filter + "'";
-      case "notEqual":
-        return key + " != '" + filter + "'";
-      case "contains":
-        return key + " like '%" + filter + "%'";
-      case "notContains":
-        return key + " not like '%" + filter + "%'";
-      case "startsWith":
-        return key + " like '" + filter + "%'";
-      case "endsWith":
-        return key + " like '%" + filter + "'";
-      default:
-        log.error("unknown text filter type: " + type);
-        return "true";
-    }
-  }
-
-  private String createDateFilter(String key, Map<String, Object> item) {
-    var type = (String) item.get("type");
-    var dateFrom = item.get("dateFrom");
-    var dateTo = item.get("dateTo");
-    switch (type) {
-      case "equals":
-        return key + " = '" + dateFrom + "'";
-      case "notEqual":
-        return key + " != '" + dateFrom + "'";
-      case "greaterThan":
-        return key + " > '" + dateFrom + "'";
-      case "lessThan":
-        return key + " < '" + dateFrom + "'";
-      case "inRange":
-        return "(" + key + " between '" + dateFrom + "' and '" + dateTo + "')";
-      default:
-        log.error("unknown date filter type: " + type);
-        return "true";
-    }
-  }
-
-  private String createOrderBy(TableRequest request, List<Long> ids) {
-    if (!request.hasSort()) {
-      return "";
-    }
-
-    var caseBody =
-        IntStream.range(0, ids.size())
-            .mapToObj((i) -> format(" when %s then %s ", ids.get(i), i))
-            .collect(joining());
-    return format(" order by (case %s %s end) ", ENTITY_ID_ALIAS, caseBody);
-  }
-
-  private String createOrderBy(TableRequest request) {
-    if (!request.hasSort()) {
-      return "";
-    }
-
-    var rowGroupCols = request.getRowGroupCols();
-    var groupKeys = request.getGroupKeys();
-    var sortModel = request.getSortModel();
-
-    var grouping = isDoingGrouping(request);
-
-    var sortParts = new ArrayList<String>();
-    var groupColIds =
-        rowGroupCols.stream().map(ColumnVO::getId).limit(groupKeys.size() + 1).collect(toList());
-
-    sortModel.forEach(
-        (item) -> {
-          if (!grouping || groupColIds.contains(item.getColId())) {
-            var mappedColId = getMappedField(item.getColId());
-            sortParts.add(mappedColId + ' ' + item.getSort());
-          }
-        });
-
-    if (!sortParts.isEmpty()) {
-      return " order by " + Joiner.on(", ").join(sortParts);
-    } else {
-      return "";
-    }
-  }
-
-  private String createGroupBy(TableRequest request) {
-    var rowGroupCols = request.getRowGroupCols();
-    var groupKeys = request.getGroupKeys();
-
-    if (isDoingGrouping(request)) {
-      var colsToGroupBy = new ArrayList<String>();
-
-      var rowGroupCol = rowGroupCols.get(groupKeys.size());
-      var field = rowGroupCol.getField();
-      colsToGroupBy.add(field);
-
-      return " group by " + Joiner.on(", ").join(colsToGroupBy);
-    } else {
-      // select all columns
-      return "";
-    }
-  }
-
-  private String createHaving(TableRequest request) {
-    var rowGroupCols = request.getRowGroupCols();
-    var groupKeys = request.getGroupKeys();
-    var filterModel = request.getFilterModel();
-    var valueCols = request.getValueCols();
-
-    var whereParts = new ArrayList<String>();
-
-    //    if (!groupKeys.isEmpty()) {
-    //      IntStream.range(0, groupKeys.size())
-    //          .forEach(
-    //              (index) -> {
-    //                var key = groupKeys.get(index);
-    //                var colName = rowGroupCols.get(index).getField();
-    //                whereParts.add(colName + " = '" + key + "'");
-    //              });
-    //    }
-
-    if (!filterModel.isEmpty()) {
-      var keySet = filterModel.keySet();
-      keySet.forEach(
-          (key) -> {
-            var item = filterModel.get(key);
-            var aggFunc =
-                valueCols.stream()
-                    .filter(v -> v.getField().equals(key))
-                    .map(ColumnVO::getAggFunc)
-                    .findFirst();
-            if (aggFunc.isPresent()) {
-              var keyMapped = getMappedField(key);
-              var keyAgg = format("%s ( %s )", aggFunc.get(), keyMapped);
-              whereParts.add(createFilter(keyAgg, item));
-            }
-          });
-    }
-
-    if (!whereParts.isEmpty()) {
-      return " having " + Joiner.on(" and ").join(whereParts);
-    } else {
-      return "";
-    }
-  }
-
-  private String createWhereIds(List<Long> ids) {
-    var idsString = Joiner.on(",").join(ids);
-    return format(" where %s in (%s) ", ENTITY_ID_ALIAS, idsString);
   }
 
   private boolean isDoingGrouping(TableRequest request) {
@@ -411,55 +63,6 @@ abstract class BaseDao<T> {
     var rowGroupCols = request.getRowGroupCols();
     var groupKeys = request.getGroupKeys();
     return rowGroupCols.size() > groupKeys.size();
-  }
-
-  private TypedQuery<?> createQueryMap(String query) {
-    log.debug("QUERY:\n{}", query);
-    return em.createQuery(query, Map.class);
-  }
-
-  private List<T> getEntitiesByIds(TableRequest request, List<Long> ids) {
-    var hql = createSelectByIds(request, ids);
-    log.debug("HQL QUERY:\n{}", hql);
-    return em.createQuery(hql, clazz).getResultList();
-  }
-
-  private Number getEntitiesCount(TableRequest request) {
-    var selectEntityCount = createSelectEntityCount();
-    var from = createSelectFrom();
-    var joining = ""; // getEntityFetchJoins();
-    var where = createWhere(request);
-    var hql = selectEntityCount + from + joining + where;
-
-    try {
-      log.debug("HQL COUNT:\n{}", hql);
-      return em.createQuery(hql, Number.class).getSingleResult();
-    } catch (NoResultException e) {
-      return 0;
-    }
-  }
-
-  private List<Long> getEntitiesIds(TableRequest request) {
-    var selectEntityId = createSelectEntityId(request);
-    var from = createSelectFrom();
-    var where = createWhere(request);
-    var orderBy = createOrderBy(request);
-    var hql = selectEntityId + from + where + orderBy;
-
-    var startRow = request.getStartRow();
-    var maxResult = request.getEndRow() - startRow + 1;
-
-    Function<Object, Long> mapToLong =
-        (Object r) -> {
-          if (r instanceof Long) {
-            return (Long) r;
-          }
-          return (Long) ((Object[]) r)[0];
-        };
-    log.debug("HQL QUERY:\n{}", hql);
-    List<?> list =
-        em.createQuery(hql).setFirstResult(startRow).setMaxResults(maxResult).getResultList();
-    return list.stream().map(mapToLong).collect(toList());
   }
 
   private String getEntityName() {

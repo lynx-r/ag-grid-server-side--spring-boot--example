@@ -34,6 +34,10 @@ public class TableRequest {
   // if sorting, what the sort model is
   private List<SortModel> sortModel;
 
+  public Integer getLimit() {
+    return endRow - startRow + 1;
+  }
+
   public boolean isPaged() {
     return startRow >= 0 && endRow > 0;
   }
