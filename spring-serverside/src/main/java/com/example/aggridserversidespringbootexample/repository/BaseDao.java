@@ -19,7 +19,6 @@ import java.util.stream.IntStream;
 import static com.example.aggridserversidespringbootexample.config.Constants.*;
 import static com.example.aggridserversidespringbootexample.util.FieldMapper.getMappedField;
 import static java.lang.String.format;
-import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
@@ -36,49 +35,56 @@ abstract class BaseDao<T> {
   }
 
   public DataResponse findAllByRequest(TableRequest request) {
-    var startRow = request.getStartRow();
-    var maxResult = request.getEndRow() - startRow + 1;
-
-    if (isDoingGrouping(request.getRowGroupCols(), request.getGroupKeys())) {
-      var from = createSelectFrom();
-      var where = createWhere(request);
-      var orderBy = createOrderBy(request);
-      var selectGroupCount = createSelectGroupCount(request);
-      var groupBy = createGroupBy(request);
-      var having = createHaving(request);
-      var hql = selectGroupCount + from + where + groupBy + orderBy + having;
-
-      Number count = 0;
-//      try {
-//        count = createSelectCount(hql).getSingleResult();
-//      } catch (NoResultException e) {
-//        return DataResponse.empty();
-//      }
-
-      var results = createQueryMap(hql)
-          .setFirstResult(startRow)
-          .setMaxResults(maxResult)
-          .getResultList();
-      return DataResponse.fromListAndCount(results, count);
+    if (isDoingGrouping(request)) {
+      return findAllGrouped(request);
     }
+    return findAll(request);
+  }
 
-    var count = createSelectCount(request);
+  private DataResponse findAll(TableRequest request) {
+    var count = getEntitiesCount(request);
 
     var from = createSelectFrom();
     var where = createWhere(request);
-//    var orderBy = createOrderBy(request);
-
+    //    var orderBy = createOrderBy(request);
     var selectEntityId = createSelectEntityId();
-    var hql = selectEntityId + from + where;
+    var hqlSelectIds = selectEntityId + from + where;
+
+    var startRow = request.getStartRow();
+    var maxResult = request.getEndRow() - startRow + 1;
     var ids =
-        createSelectIds(hql)
+        createQueryIds(hqlSelectIds)
             .setFirstResult(startRow)
             .setMaxResults(maxResult)
             .getResultList();
 
-    hql = createSelectByIds(request, ids);
-    var results = createQueryEntities(hql).getResultList();
+    var hqlSelectByIds = createSelectByIds(request, ids);
+    var results = createQueryByIds(hqlSelectByIds).getResultList();
 
+    return DataResponse.fromListAndCount(results, count);
+  }
+
+  private DataResponse findAllGrouped(TableRequest request) {
+    var startRow = request.getStartRow();
+    var maxResult = request.getEndRow() - startRow + 1;
+
+    var from = createSelectFrom();
+    var where = createWhere(request);
+    var orderBy = createOrderBy(request);
+    var selectGroupCount = createSelectGroupCount(request);
+    var groupBy = createGroupBy(request);
+    var having = createHaving(request);
+    var hql = selectGroupCount + from + where + groupBy + orderBy + having;
+
+    Number count = 0;
+    //      try {
+    //        count = createSelectCount(hql).getSingleResult();
+    //      } catch (NoResultException e) {
+    //        return DataResponse.empty();
+    //      }
+
+    var results =
+        createQueryMap(hql).setFirstResult(startRow).setMaxResults(maxResult).getResultList();
     return DataResponse.fromListAndCount(results, count);
   }
 
@@ -312,7 +318,7 @@ abstract class BaseDao<T> {
     var groupKeys = request.getGroupKeys();
     var sortModel = request.getSortModel();
 
-    var grouping = this.isDoingGrouping(rowGroupCols, groupKeys);
+    var grouping = isDoingGrouping(request);
 
     var sortParts = new ArrayList<String>();
     if (!sortModel.isEmpty()) {
@@ -339,7 +345,7 @@ abstract class BaseDao<T> {
     var rowGroupCols = request.getRowGroupCols();
     var groupKeys = request.getGroupKeys();
 
-    if (this.isDoingGrouping(rowGroupCols, groupKeys)) {
+    if (isDoingGrouping(request)) {
       var colsToGroupBy = new ArrayList<String>();
 
       var rowGroupCol = rowGroupCols.get(groupKeys.size());
@@ -401,19 +407,11 @@ abstract class BaseDao<T> {
     return format(" where %s in (%s) ", ENTITY_ID_ALIAS, idsString);
   }
 
-  private <U> List<U> cutResultsToPageSize(TableRequest request, List<U> results) {
-    var pageSize = request.getEndRow() - request.getStartRow();
-    if (nonNull(results) && results.size() > pageSize) {
-      return results.subList(0, pageSize);
-    } else {
-      return results;
-    }
-  }
-
-  private boolean isDoingGrouping(List<ColumnVO> rowGroupCols, List<String> groupKeys) {
-    // we are not doing grouping if at the lowest level. we are at the lowest level
+  private boolean isDoingGrouping(TableRequest request) {
     // if we are grouping by more columns than we have keys for (that means the user
     // has not expanded a lowest level group, OR we are not grouping at all).
+    var rowGroupCols = request.getRowGroupCols();
+    var groupKeys = request.getGroupKeys();
     return rowGroupCols.size() > groupKeys.size();
   }
 
@@ -422,28 +420,27 @@ abstract class BaseDao<T> {
     return em.createQuery(query, Map.class);
   }
 
-  private TypedQuery<T> createQueryEntities(String query) {
+  private TypedQuery<T> createQueryByIds(String query) {
     log.debug("HQL QUERY:\n{}", query);
     return em.createQuery(query, clazz);
   }
 
-  private Number createSelectCount(TableRequest request) {
+  private Number getEntitiesCount(TableRequest request) {
     var from = createSelectFrom();
     var selectEntityCount = createSelectEntityCount();
-    var joining = "";//getEntityFetchJoins();
+    var joining = ""; // getEntityFetchJoins();
     var where = createWhere(request);
-
     var hql = selectEntityCount + from + joining + where;
-    Number count;
+
     try {
-    log.debug("HQL COUNT:\n{}", hql);
-    return em.createQuery(hql, Number.class).getSingleResult();
-  } catch (NoResultException e) {
-    return 0;
-  }
+      log.debug("HQL COUNT:\n{}", hql);
+      return em.createQuery(hql, Number.class).getSingleResult();
+    } catch (NoResultException e) {
+      return 0;
+    }
   }
 
-  private TypedQuery<Long> createSelectIds(String query) {
+  private TypedQuery<Long> createQueryIds(String query) {
     log.debug("HQL QUERY:\n{}", query);
     return em.createQuery(query, Long.class);
   }

@@ -1,11 +1,5 @@
 import { GridOptions } from 'ag-grid-community'
-import {
-  commonSettings,
-  defaultColDef,
-  defaultFilterParams,
-  numberFilterOptions,
-  textFilterOptions
-} from './commonOptions'
+import { defaultColDef } from './commonOptions'
 
 export const employeesGridOptions: GridOptions = {
   columnDefs: [
