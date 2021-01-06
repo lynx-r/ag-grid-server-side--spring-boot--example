@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
-import static com.example.aggridserversidespringbootexample.config.Constants.*;
-import static com.example.aggridserversidespringbootexample.util.FieldMapper.getMappedField;
+import static com.example.aggridserversidespringbootexample.config.Constants.ENTITY_ALIAS;
+import static com.example.aggridserversidespringbootexample.config.Constants.ENTITY_ID_ALIAS;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -72,10 +72,6 @@ public class TableRequestFlatRepository<T> extends BaseTableRequestRepository im
     return list.stream().map(mapToLong).collect(toList());
   }
 
-
-  private String createSelectEntityCount() {
-    return "select count( distinct " + ENTITY_ID_ALIAS + " ) ";
-  }
 
   private String createOrderBy(TableRequest request) {
     if (!request.hasSort()) {

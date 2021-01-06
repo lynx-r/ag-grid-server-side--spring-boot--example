@@ -20,10 +20,10 @@ public class DataResponse {
     return new DataResponse(Collections.emptyList(), 0);
   }
 
-  public static DataResponse fromListAndCount(List<?> data, Number lastRow) {
-    if (isNull(lastRow)) {
-      lastRow = data.size();
+  public static DataResponse fromListAndCount(List<?> data, Number count) {
+    if (isNull(count)) {
+      count = data.size();
     }
-    return new DataResponse(data, lastRow);
+    return new DataResponse(data, count);
   }
 }

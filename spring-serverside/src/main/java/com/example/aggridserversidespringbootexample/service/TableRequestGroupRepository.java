@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static com.example.aggridserversidespringbootexample.util.FieldMapper.getMappedField;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 
@@ -27,19 +26,7 @@ public class TableRequestGroupRepository<T> extends BaseTableRequestRepository i
   private EntityManager em;
 
   public Number getCount(TableRequest request) {
-    var selectGroupCount = createSelectGroupCount(request);
-    var from = createSelectFrom();
-    var where = createWhere(request);
-    var groupBy = createGroupBy(request);
-    var having = createHaving(request);
-    var hql = selectGroupCount + from + where + groupBy + having;
-
-    try {
-      log.debug("HQL COUNT:\n{}", hql);
-      return em.createQuery(hql, Number.class).getSingleResult();
-    } catch (NoResultException e) {
-      return 0;
-    }
+    throw new UnsupportedOperationException();
   }
 
   public List<Map> getEntities(TableRequest request) {
@@ -96,28 +83,6 @@ public class TableRequestGroupRepository<T> extends BaseTableRequestRepository i
       return "";
     }
   }
-
-  private String createSelectGroupCount(TableRequest request) {
-    var rowGroupCols = request.getRowGroupCols();
-    var valueCols = request.getValueCols();
-    var groupKeys = request.getGroupKeys();
-    var colsToSelect = new ArrayList<String>();
-
-    var rowGroupCol = rowGroupCols.get(groupKeys.size());
-    var mappedField = getMappedField(rowGroupCol.getField());
-    colsToSelect.add(mappedField + " as " + rowGroupCol.getField());
-
-    valueCols.forEach(
-        (valueCol) ->
-            colsToSelect.add(
-                valueCol.getAggFunc()
-                    + "("
-                    + getMappedField(valueCol.getField())
-                    + ") as "
-                    + valueCol.getField()));
-
-    return "select count( new map(" + Joiner.on(", ").join(colsToSelect) + ") ) ";
-  }
   private TypedQuery<Map> createQueryMap(String query) {
     log.debug("QUERY:\n{}", query);
     return em.createQuery(query, Map.class);
@@ -129,7 +94,7 @@ public class TableRequestGroupRepository<T> extends BaseTableRequestRepository i
     var colsToGroupBy = new ArrayList<String>();
 
     var rowGroupCol = rowGroupCols.get(groupKeys.size());
-    var field = rowGroupCol.getField();
+    var field = getMappedField(rowGroupCol.getField());
     colsToGroupBy.add(field);
 
     return " group by " + Joiner.on(", ").join(colsToGroupBy);

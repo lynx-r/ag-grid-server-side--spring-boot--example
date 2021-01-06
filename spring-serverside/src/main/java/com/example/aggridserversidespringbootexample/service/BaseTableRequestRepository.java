@@ -4,8 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
-import static com.example.aggridserversidespringbootexample.config.Constants.ENTITY_ALIAS;
-import static com.example.aggridserversidespringbootexample.config.Constants.ENTITY_ALIAS_TRIM;
+import static com.example.aggridserversidespringbootexample.config.Constants.*;
 import static java.lang.String.format;
 
 @Slf4j
@@ -17,6 +16,23 @@ public class BaseTableRequestRepository {
 
   public void setEntityName(String entityName) {
     this.entityName = entityName;
+  }
+
+  protected static String getMappedField(String field) {
+    var map =
+        Map.of(
+            "totalSalary", "sum(salaries.salary)",
+            "salariesAsString", "salaries.salary",
+            "salariesFromDate", "salaries.fromDate");
+    if (map.containsKey(field)) {
+      return map.get(field);
+    }
+    return ENTITY_ALIAS_TRIM + "." + field;
+  }
+
+
+  protected String createSelectEntityCount() {
+    return "select count( distinct " + ENTITY_ID_ALIAS + " ) ";
   }
 
   protected String createSelectFrom() {

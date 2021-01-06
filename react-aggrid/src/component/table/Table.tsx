@@ -26,7 +26,7 @@ const Table = ({type}: TableProps) => {
     [datasource, gridOptions])
 
   return (
-    <div className="ag-theme-alpine" style={{width: 1200, height: 700}}>
+    <div className="ag-theme-alpine" style={{width: 1400, height: 700}}>
       <TotalRows count={dataCount}/>
       <AgGridHoc/>
     </div>

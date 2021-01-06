@@ -48,13 +48,8 @@ abstract class BaseDao<T> {
         = applicationContext.getBean(TableRequestGroupRepository.class);
     repo.setEntityName(getEntityName());
 
-    Number count = repo.getCount(request);
-    if (count.intValue() == 0) {
-      return DataResponse.empty();
-    }
-
     var results = repo.getEntities(request);
-    return DataResponse.fromListAndCount(results, count);
+    return DataResponse.fromListAndCount(results, -1);
   }
 
   private boolean isDoingGrouping(TableRequest request) {
